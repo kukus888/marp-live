@@ -101,61 +101,180 @@ preview.addEventListener('scroll', () => {
   withLock('preview', () => { editor.scrollTop = line * LINE_H })
 })
 
-// ---- server I/O ----
-function setStatus(t) { statusEl.textContent = t }
-async function api(method, path, body) {
-  const r = await fetch('/api' + path, { method, body })
-  if (!r.ok) throw new Error(await r.text())
-  return method === 'GET' ? r : null
-}
-async function fill(sel, path, first) {
-  const names = await (await api('GET', path + '/')).json()
-  const cur = sel.value
-  sel.innerHTML = ''
-  sel.add(new Option(first, ''))
-  names.forEach((n) => sel.add(new Option(n, n)))
-  sel.value = names.includes(cur) ? cur : ''
-}
-const enc = encodeURIComponent
+// ---- syntax highlighting ----
+const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const span = (c, t) => `<span class="t-${c}">${esc(t)}</span>`
 
-$('save').onclick = async () => {
-  try { await api('PUT', '/presentations/' + enc($('name').value), editor.value); setStatus('saved'); fill($('load'), '/presentations', 'Load…') }
-  catch (e) { setStatus('save failed: ' + e.message) }
+function inline(text) {
+  const re = /(`[^`]*`)|(\*\*[^*]+\*\*|__[^_]+__)|(\*[^*\s][^*]*\*|_[^_\s][^_]*_)|(!?\[[^\]]*\]\([^)]*\))|(<[^>]+>)|(https?:\/\/[^\s)]+)/g
+  let out = '', last = 0, m
+  while ((m = re.exec(text))) {
+    out += esc(text.slice(last, m.index))
+    const c = m[1] ? 'code' : m[2] ? 'b' : m[3] ? 'i' : m[4] ? 'l' : m[5] ? 'q' : 'u'
+    out += span(c, m[0])
+    last = m.index + m[0].length
+  }
+  return out + esc(text.slice(last))
 }
-$('load').onchange = async (e) => {
-  const n = e.target.value
-  if (!n) return
-  editor.value = await (await api('GET', '/presentations/' + enc(n))).text()
-  $('name').value = n
-  e.target.value = ''
-  render(); setStatus('loaded ' + n)
+
+function highlightMarkdown(text) {
+  const lines = text.split('\n')
+  let fence = null, front = lines[0] && lines[0].trim() === '---'
+  return lines.map((ln, i) => {
+    if (front) {
+      if (i > 0 && ln.trim() === '---') front = false
+      return i === 0 || !front ? span('sep', ln) : span('fm', ln)
+    }
+    if (fence) {
+      if (ln.trim().startsWith(fence)) { fence = null; return span('fence', ln) }
+      return span('code', ln)
+    }
+    let m = ln.match(/^\s*(```+|~~~+)/)
+    if (m) { fence = m[1]; return span('fence', ln) }
+    if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(ln)) return span('sep', ln)
+    if (/^\s{0,3}#{1,6}(\s|$)/.test(ln)) return span('h', ln)
+    if (/^\s*<!--.*-->\s*$/.test(ln)) return span('cm', ln)
+    if ((m = ln.match(/^(\s*>+\s?)(.*)$/))) return span('q', m[1]) + inline(m[2])
+    if ((m = ln.match(/^(\s*(?:[-*+]|\d+[.)])\s+)(.*)$/))) return span('li', m[1]) + inline(m[2])
+    return inline(ln)
+  }).join('\n')
 }
-$('style').onchange = async (e) => {
-  const n = e.target.value
-  customCss = n ? await (await api('GET', '/styles/' + enc(n))).text() : ''
-  localStorage.setItem('style', n)
-  render()
+
+function highlightCss(text) {
+  const re = /(\/\*[\s\S]*?(?:\*\/|$))|(@[\w-]+)|([^{}@;:]*)(\{)|([\w-]+)(\s*:)([^;}]*)/g
+  let out = '', last = 0, m
+  while ((m = re.exec(text))) {
+    if (m[0] === '') { re.lastIndex++; continue }
+    out += esc(text.slice(last, m.index))
+    if (m[1]) out += span('cm', m[1])
+    else if (m[2]) out += span('at', m[2])
+    else if (m[4]) out += span('sel', m[3]) + esc('{')
+    else out += span('prop', m[5]) + esc(m[6]) + span('val', m[7])
+    last = m.index + m[0].length
+  }
+  return out + esc(text.slice(last))
 }
-$('editStyle').onclick = async () => {
-  let n = $('style').value || prompt('New style name:')
-  if (!n) return
-  let css = ''
-  try { css = await (await api('GET', '/styles/' + enc(n))).text() } catch {}
-  const next = prompt(`CSS for style "${n}" (empty text deletes it):`, css)
-  if (next === null) return
-  try {
-    if (next === '') await api('DELETE', '/styles/' + enc(n))
-    else await api('PUT', '/styles/' + enc(n), next)
-    await fill($('style'), '/styles', '(default style)')
-    $('style').value = next === '' ? '' : n
-    $('style').onchange({ target: $('style') })
-  } catch (e) { setStatus('style failed: ' + e.message) }
+
+function bindHighlight(ta, pre, fn) {
+  const update = () => { pre.innerHTML = fn(ta.value) + '\n '; pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft }
+  ta.addEventListener('input', update)
+  ta.addEventListener('scroll', () => { pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft })
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '  ') }
+  })
+  return update
 }
+const updateHl = bindHighlight(editor, $('hl'), highlightMarkdown)
+const updateCssHl = bindHighlight($('cssEditor'), $('hlCss'), highlightCss)
+
+// ---- tabs ----
+function showTab(style) {
+  $('tabSlides').classList.toggle('active', !style)
+  $('tabStyle').classList.toggle('active', style)
+  $('wrapSlides').hidden = style
+  $('wrapStyle').hidden = !style
+  $('styleTools').hidden = !style
+  ;(style ? $('cssEditor') : editor).focus()
+}
+$('tabSlides').onclick = () => showTab(false)
+$('tabStyle').onclick = () => showTab(true)
+
+$('cssEditor').addEventListener('input', () => {
+  customCss = $('cssEditor').value
+  localStorage.setItem('customCss', customCss)
+  clearTimeout(render.t); render.t = setTimeout(render, 150)
+})
+
+// ---- file I/O ----
+function setStatus(t) { statusEl.textContent = t }
+function download(name, text, type) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([text], { type }))
+  a.download = name
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
+function pickFile(input, cb) {
+  input.onchange = async () => {
+    const f = input.files[0]
+    input.value = ''
+    if (f) cb(f.name, await f.text())
+  }
+  input.click()
+}
+const baseName = (n) => n.replace(/\.[^.]*$/, '')
+
+$('save').onclick = () => {
+  const n = ($('name').value.trim() || 'untitled').replace(/[\\/:*?"<>|]/g, '_')
+  download(n + '.md', editor.value, 'text/markdown')
+  setStatus('downloaded ' + n + '.md')
+}
+$('load').onclick = () => pickFile($('file'), (name, text) => {
+  editor.value = text
+  $('name').value = baseName(name)
+  updateHl(); render(); setStatus('loaded ' + name)
+})
+$('saveCss').onclick = () => download(($('name').value.trim() || 'untitled') + '.css', $('cssEditor').value, 'text/css')
+$('loadCss').onclick = () => pickFile($('cssfile'), (name, text) => {
+  $('cssEditor').value = text
+  $('cssEditor').dispatchEvent(new Event('input'))
+  updateCssHl(); setStatus('loaded ' + name)
+})
 $('pdf').onclick = () => window.print()
+
+// ---- presenter mode ----
+const presenter = $('presenter'), stage = $('stage')
+let slideIdx = 0, hintTimer = null
+function showSlide(i) {
+  const slides = stage.querySelectorAll('svg[data-marpit-svg]')
+  if (!slides.length) return
+  slideIdx = Math.max(0, Math.min(slides.length - 1, i))
+  slides.forEach((el, k) => el.classList.toggle('current', k === slideIdx))
+  $('counter').textContent = (slideIdx + 1) + ' / ' + slides.length
+}
+function showHint() {
+  const h = $('hint')
+  h.classList.remove('fade')
+  clearTimeout(hintTimer)
+  hintTimer = setTimeout(() => h.classList.add('fade'), 3500)
+}
+function startPresenting() {
+  stage.innerHTML = preview.innerHTML
+  presenter.hidden = false
+  const slides = [...preview.querySelectorAll('svg[data-marpit-svg]')]
+  const y = preview.scrollTop + preview.offsetTop
+  let s = 0
+  while (s < slides.length - 1 && slides[s + 1].offsetTop <= y) s++
+  showSlide(s)
+  showHint()
+}
+function stopPresenting() {
+  presenter.hidden = true
+  stage.innerHTML = ''
+  if (document.fullscreenElement) document.exitFullscreen()
+}
+$('present').onclick = startPresenting
+presenter.addEventListener('mousemove', showHint)
+presenter.addEventListener('click', (e) => showSlide(slideIdx + (e.clientX < innerWidth / 4 ? -1 : 1)))
+document.addEventListener('keydown', (e) => {
+  if (presenter.hidden) return
+  const next = ['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter']
+  const prev = ['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace']
+  if (next.includes(e.key)) showSlide(slideIdx + 1)
+  else if (prev.includes(e.key)) showSlide(slideIdx - 1)
+  else if (e.key === 'Home') showSlide(0)
+  else if (e.key === 'End') showSlide(1e9)
+  else if (e.key === 'Escape') stopPresenting()
+  else if (e.key === 'f' || e.key === 'F') {
+    if (document.fullscreenElement) document.exitFullscreen()
+    else presenter.requestFullscreen && presenter.requestFullscreen().catch(() => {})
+  } else return
+  e.preventDefault()
+  showHint()
+})
 
 editor.addEventListener('input', () => { clearTimeout(editor.t); editor.t = setTimeout(render, 150) })
 editor.addEventListener('keydown', (e) => {
-  if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '  ') }
   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); $('save').click() }
 })
 
@@ -176,9 +295,7 @@ graph LR
   A --> B --> C
 \`\`\`
 `
+customCss = localStorage.getItem('customCss') || ''
+$('cssEditor').value = customCss
+updateHl(); updateCssHl()
 render()
-fill($('load'), '/presentations', 'Load…').catch(() => {})
-fill($('style'), '/styles', '(default style)').then(() => {
-  const s = localStorage.getItem('style')
-  if (s && [...$('style').options].some((o) => o.value === s)) { $('style').value = s; $('style').onchange({ target: $('style') }) }
-}).catch(() => {})

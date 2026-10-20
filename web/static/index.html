@@ -1,20 +1,39 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Marp Live</title>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Marp Live</title>
 <link rel="stylesheet" href="app.css"></head>
 <body>
-<div class="toolbar">
-  <strong>Marp Live</strong>
-  <input id="name" placeholder="presentation name" value="untitled">
-  <button id="save">Save</button>
-  <select id="load"><option value="">Load…</option></select>
-  <select id="style"><option value="">(default style)</option></select>
-  <button id="editStyle">Edit style</button>
-  <button id="pdf">Export PDF</button>
+<header class="navbar">
+  <div class="brand"><span class="logo">▶</span> Marp Live</div>
+  <input id="name" class="input" placeholder="presentation name" value="untitled" aria-label="Presentation name">
+  <div class="group">
+    <button id="load" class="btn">Open…</button>
+    <button id="save" class="btn">Save</button>
+    <button id="pdf" class="btn">Export PDF</button>
+  </div>
   <span id="status"></span>
-</div>
+  <button id="present" class="btn primary">▶ Present</button>
+  <input id="file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+  <input id="cssfile" type="file" accept=".css,text/css" hidden>
+</header>
 <div class="main">
-  <textarea id="editor" spellcheck="false" wrap="off"></textarea>
+  <section class="pane">
+    <div class="tabs" role="tablist">
+      <button class="tab active" id="tabSlides" role="tab">Slides</button>
+      <button class="tab" id="tabStyle" role="tab">Style (CSS)</button>
+      <span class="tabtools" id="styleTools" hidden>
+        <button id="loadCss" class="btn small">Open CSS…</button>
+        <button id="saveCss" class="btn small">Save CSS</button>
+      </span>
+    </div>
+    <div class="editorwrap" id="wrapSlides"><pre class="hl" id="hl" aria-hidden="true"></pre><textarea id="editor" class="code" spellcheck="false" wrap="off"></textarea></div>
+    <div class="editorwrap" id="wrapStyle" hidden><pre class="hl" id="hlCss" aria-hidden="true"></pre><textarea id="cssEditor" class="code" spellcheck="false" wrap="off" placeholder="/* Custom CSS applied to the presentation */"></textarea></div>
+  </section>
   <div id="preview"></div>
+</div>
+<div id="presenter" hidden>
+  <div id="stage"></div>
+  <div id="hint">← → / Space to navigate · F fullscreen (or F11) · Esc to exit</div>
+  <div id="counter"></div>
 </div>
 <script src="dist/app.js"></script>
 </body></html>

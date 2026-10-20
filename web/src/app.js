@@ -5,6 +5,26 @@ mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' })
 
 const $ = (id) => document.getElementById(id)
 const editor = $('editor'), preview = $('preview'), statusEl = $('status')
+
+// Slides render inside shadow roots so presentation/custom CSS can't leak into the app UI.
+const BASE_CSS = `
+:host{display:block}
+.box svg[data-marpit-svg]{display:block;width:100%;height:auto;margin:0 0 16px;background:#fff;box-shadow:0 4px 16px #0008;border-radius:2px}
+.box pre.mermaid{background:none;text-align:center}
+.stage svg[data-marpit-svg]{display:none;width:100vw;height:100vh;margin:0;box-shadow:none;border-radius:0}
+.stage svg[data-marpit-svg].current{display:block}
+@media print{.box svg[data-marpit-svg]{width:1280px;height:720px;margin:0;box-shadow:none;break-after:page;border-radius:0}}
+`
+function shadowBox(host, cls) {
+  const root = host.attachShadow({ mode: 'open' })
+  const base = document.createElement('style'); base.textContent = BASE_CSS
+  const user = document.createElement('style')
+  const box = document.createElement('div'); box.className = cls
+  root.append(base, user, box)
+  return { box, user }
+}
+const previewShadow = shadowBox(preview, 'box')
+const previewBox = previewShadow.box
 const LINE_H = 21
 
 const marp = new Marp({ html: false })
@@ -18,13 +38,12 @@ marp.markdown.renderer.rules.fence = (tokens, idx, ...rest) => {
 }
 
 let customCss = ''
-const styleTag = document.createElement('style')
-document.head.appendChild(styleTag)
+const styleTag = previewShadow.user
 
 const svgCache = new Map()
 let mermaidSeq = 0
 async function renderMermaid() {
-  for (const el of preview.querySelectorAll('pre.mermaid')) {
+  for (const el of previewBox.querySelectorAll('pre.mermaid')) {
     const src = el.textContent
     if (!svgCache.has(src)) {
       try {
@@ -46,7 +65,7 @@ function render() {
   const { html, css } = marp.render(editor.value)
   styleTag.textContent = css + '\n' + customCss
   const keep = preview.scrollTop
-  preview.innerHTML = html
+  previewBox.innerHTML = html
   preview.scrollTop = keep
   const tok = ++renderToken
   renderMermaid().then(() => { if (tok === renderToken) preview.scrollTop = keep })
@@ -81,7 +100,7 @@ editor.addEventListener('scroll', () => {
   let s = 0
   while (s < starts.length - 2 && starts[s + 1] <= line) s++
   const frac = Math.min(1, Math.max(0, (line - starts[s]) / Math.max(1, starts[s + 1] - starts[s])))
-  const slides = preview.querySelectorAll('svg[data-marpit-svg]')
+  const slides = previewBox.querySelectorAll('svg[data-marpit-svg]')
   const el = slides[s]
   if (!el) return
   withLock('editor', () => { preview.scrollTop = el.offsetTop - preview.offsetTop + frac * el.offsetHeight })
@@ -89,7 +108,7 @@ editor.addEventListener('scroll', () => {
 
 preview.addEventListener('scroll', () => {
   if (lock === 'editor') return
-  const slides = [...preview.querySelectorAll('svg[data-marpit-svg]')]
+  const slides = [...previewBox.querySelectorAll('svg[data-marpit-svg]')]
   if (!slides.length) return
   const y = preview.scrollTop + preview.offsetTop
   let s = 0
@@ -223,7 +242,8 @@ $('loadCss').onclick = () => pickFile($('cssfile'), (name, text) => {
 $('pdf').onclick = () => window.print()
 
 // ---- presenter mode ----
-const presenter = $('presenter'), stage = $('stage')
+const presenter = $('presenter')
+const stageShadow = shadowBox($('stage'), 'stage'), stage = stageShadow.box
 let slideIdx = 0, hintTimer = null
 function showSlide(i) {
   const slides = stage.querySelectorAll('svg[data-marpit-svg]')
@@ -239,9 +259,9 @@ function showHint() {
   hintTimer = setTimeout(() => h.classList.add('fade'), 3500)
 }
 function startPresenting() {
-  stage.innerHTML = preview.innerHTML
+  stage.innerHTML = previewBox.innerHTML
   presenter.hidden = false
-  const slides = [...preview.querySelectorAll('svg[data-marpit-svg]')]
+  const slides = [...previewBox.querySelectorAll('svg[data-marpit-svg]')]
   const y = preview.scrollTop + preview.offsetTop
   let s = 0
   while (s < slides.length - 1 && slides[s + 1].offsetTop <= y) s++
@@ -251,6 +271,7 @@ function startPresenting() {
 function stopPresenting() {
   presenter.hidden = true
   stage.innerHTML = ''
+  stageShadow.user.textContent = ''
   if (document.fullscreenElement) document.exitFullscreen()
 }
 $('present').onclick = startPresenting

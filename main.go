@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -104,6 +105,31 @@ func main() {
 	mux.Handle("/api/presentations/", http.StripPrefix("/api", pres.handler("/presentations/")))
 	mux.Handle("/api/styles/", http.StripPrefix("/api", styles.handler("/styles/")))
 	mux.Handle("/", http.FileServer(http.FS(sub)))
+	handler := secure(mux)
 	fmt.Printf("marp-live listening on http://%s (data: %s)\n", *addr, *data)
-	log.Fatal(http.ListenAndServe(*addr, mux))
+	log.Fatal(http.ListenAndServe(*addr, handler))
+}
+
+// secure adds hardening headers and rejects cross-origin writes (CSRF / DNS rebinding).
+func secure(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "no-referrer")
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			if o := r.Header.Get("Origin"); o != "" {
+				u, err := url.Parse(o)
+				if err != nil || u.Host != r.Host {
+					http.Error(w, "forbidden origin", http.StatusForbidden)
+					return
+				}
+			}
+			if r.Method != http.MethodGet && r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

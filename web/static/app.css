@@ -37,13 +37,8 @@ body{display:flex;flex-direction:column}
 .t-q{color:#6a9955}.t-li{color:#6796e6;font-weight:bold}.t-fm{color:#9cdcfe}.t-cm{color:#6a9955}
 .t-sel{color:#d7ba7d}.t-prop{color:#9cdcfe}.t-val{color:#ce9178}.t-at{color:#c586c0}
 #preview{flex:1;width:50%;overflow:auto;background:#2b2f3a;padding:16px}
-#preview svg[data-marpit-svg]{display:block;width:100%;height:auto;margin:0 0 16px;background:#fff;box-shadow:0 4px 16px #0008;border-radius:2px}
-#preview pre.mermaid{background:none;text-align:center}
 #presenter{position:fixed;inset:0;z-index:100;background:#000;display:flex;align-items:center;justify-content:center}
 #stage{width:100vw;height:100vh}
-#stage svg[data-marpit-svg]{display:none;width:100vw;height:100vh}
-#stage svg[data-marpit-svg].current{display:block}
-#stage pre.mermaid{background:none;text-align:center}
 #hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:999px;background:#000b;color:#fff;
  font-size:13px;transition:opacity .6s;pointer-events:none}
 #hint.fade{opacity:0}
@@ -53,5 +48,4 @@ body{display:flex;flex-direction:column}
  .navbar,.pane,#presenter{display:none!important}
  html,body,.main{height:auto;display:block;background:none}
  #preview{overflow:visible;padding:0;background:none;width:auto}
- #preview svg[data-marpit-svg]{width:1280px;height:720px;margin:0;box-shadow:none;break-after:page;border-radius:0}
 }

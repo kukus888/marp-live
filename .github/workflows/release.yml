@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build frontend
+        run: make web
+      - name: Build binaries
+        run: |
+          mkdir dist-bin
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist-bin/marp-live-linux-amd64 .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist-bin/marp-live-windows-amd64.exe .
+          cd dist-bin
+          tar czf marp-live-linux-amd64.tar.gz marp-live-linux-amd64
+          zip marp-live-windows-amd64.zip marp-live-windows-amd64.exe
+          sha256sum *.tar.gz *.zip > checksums.txt
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist-bin/*.tar.gz
+            dist-bin/*.zip
+            dist-bin/checksums.txt
+      - name: Upload artifacts (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist-bin/*

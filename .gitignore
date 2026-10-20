@@ -1,0 +1,4 @@
+data/
+node_modules/
+marp-live
+dist-bin/

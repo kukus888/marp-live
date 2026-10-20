@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Marp Live</title>
+<link rel="stylesheet" href="app.css"></head>
+<body>
+<div class="toolbar">
+  <strong>Marp Live</strong>
+  <input id="name" placeholder="presentation name" value="untitled">
+  <button id="save">Save</button>
+  <select id="load"><option value="">Load…</option></select>
+  <select id="style"><option value="">(default style)</option></select>
+  <button id="editStyle">Edit style</button>
+  <button id="pdf">Export PDF</button>
+  <span id="status"></span>
+</div>
+<div class="main">
+  <textarea id="editor" spellcheck="false" wrap="off"></textarea>
+  <div id="preview"></div>
+</div>
+<script src="dist/app.js"></script>
+</body></html>

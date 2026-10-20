@@ -16,3 +16,7 @@ Node.js is only needed to rebuild the frontend bundle (`web/static/dist/app.js`,
 
     make web     # bundle frontend
     make build   # static linux/amd64 binary (frontend embedded)
+
+## Release
+
+Push a tag (e.g. `git tag v0.1.0 && git push origin v0.1.0`) and the `Release` workflow publishes a GitHub release with `marp-live-linux-amd64.tar.gz`, `marp-live-windows-amd64.zip` and checksums. `make build-windows` builds the Windows binary locally.

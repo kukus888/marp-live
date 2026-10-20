@@ -1,0 +1,17 @@
+html,body{margin:0;height:100%;font-family:sans-serif}
+body{display:flex;flex-direction:column}
+.toolbar{display:flex;gap:8px;align-items:center;padding:6px 10px;background:#222;color:#eee}
+#status{margin-left:auto;font-size:12px;opacity:.8}
+.main{display:flex;flex:1;min-height:0}
+#editor{flex:1;width:50%;box-sizing:border-box;border:0;border-right:1px solid #444;resize:none;outline:0;padding:8px;
+ background:#1e1e1e;color:#d4d4d4;font:14px/21px monospace;white-space:pre;overflow:auto;tab-size:2}
+#preview{flex:1;width:50%;overflow:auto;background:#555;padding:12px;box-sizing:border-box}
+#preview svg[data-marpit-svg]{display:block;width:100%;height:auto;margin:0 0 12px;background:#fff;box-shadow:0 2px 8px #0008}
+#preview pre.mermaid{background:none;text-align:center}
+@media print{
+ @page{size:1280px 720px;margin:0}
+ .toolbar,#editor{display:none}
+ html,body,.main{height:auto;display:block}
+ #preview{overflow:visible;padding:0;background:none;width:auto}
+ #preview svg[data-marpit-svg]{width:1280px;height:720px;margin:0;box-shadow:none;break-after:page}
+}

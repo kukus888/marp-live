@@ -1,0 +1,7 @@
+{
+  "name": "marp-live-web",
+  "private": true,
+  "scripts": { "build": "esbuild src/app.js --bundle --minify --format=iife --outfile=static/dist/app.js" },
+  "dependencies": { "@marp-team/marp-core": "^4.0.0", "mermaid": "^11.0.0" },
+  "devDependencies": { "esbuild": "^0.25.0" }
+}
